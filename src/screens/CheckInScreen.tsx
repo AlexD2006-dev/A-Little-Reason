@@ -1,17 +1,41 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import ChoiceGroup from '../components/ChoiceGroup';
+import {
+  BUDGET_OPTIONS,
+  ENERGY_OPTIONS,
+  MOOD_OPTIONS,
+  SETTING_OPTIONS,
+  SOCIAL_OPTIONS,
+  TIME_OPTIONS,
+} from '../data/checkInOptions';
+import type { MissionFilters } from '../types/mission';
 import { styles } from './CheckInScreen.styles';
 
-const moods = [
-  { emoji: '😔', label: 'low' },
-  { emoji: '😕', label: 'flat' },
-  { emoji: '😐', label: 'okay' },
-  { emoji: '🙂', label: 'good' },
-  { emoji: '😊', label: 'great' },
-];
+type CheckInScreenProps = {
+  onContinue: (moodBefore: number, filters: MissionFilters) => void;
+};
 
-export default function CheckInScreen() {
+export default function CheckInScreen({ onContinue }: CheckInScreenProps) {
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
+  const [filters, setFilters] = useState<MissionFilters>({
+    energy: null,
+    time: null,
+    setting: null,
+    social: null,
+    cost: null,
+  });
+
+  function updateFilter<Key extends keyof MissionFilters>(
+    key: Key,
+    value: MissionFilters[Key],
+  ) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  const ready =
+    selectedMood !== null &&
+    Object.values(filters).every((value) => value !== null);
 
   return (
     <ScrollView
@@ -34,7 +58,7 @@ export default function CheckInScreen() {
         <Text style={styles.fieldLabel}>Current mood</Text>
 
         <View style={styles.moodRow}>
-          {moods.map((mood, index) => (
+          {MOOD_OPTIONS.map((mood, index) => (
             <Pressable
               key={mood.label}
               accessibilityRole="button"
@@ -56,6 +80,65 @@ export default function CheckInScreen() {
           <Text style={styles.moodLabel}>great</Text>
         </View>
       </View>
+
+      <ChoiceGroup
+        label="Energy"
+        options={ENERGY_OPTIONS}
+        selected={filters.energy}
+        onSelect={(value) => updateFilter('energy', value)}
+      />
+
+      <ChoiceGroup
+        label="Time available"
+        options={TIME_OPTIONS}
+        selected={filters.time}
+        onSelect={(value) => updateFilter('time', value)}
+      />
+
+      <ChoiceGroup
+        label="Setting"
+        options={SETTING_OPTIONS}
+        selected={filters.setting}
+        onSelect={(value) => updateFilter('setting', value)}
+      />
+
+      <ChoiceGroup
+        label="Most people you can handle today"
+        options={SOCIAL_OPTIONS}
+        selected={filters.social}
+        onSelect={(value) => updateFilter('social', value)}
+      />
+
+      <ChoiceGroup
+        label="Budget"
+        options={BUDGET_OPTIONS}
+        selected={filters.cost}
+        onSelect={(value) => updateFilter('cost', value)}
+      />
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !ready }}
+        disabled={!ready}
+        onPress={() => {
+          if (selectedMood !== null && ready) {
+            onContinue(selectedMood, filters);
+          }
+        }}
+        style={[
+          styles.primaryButton,
+          !ready && styles.primaryButtonDisabled,
+        ]}
+      >
+        <Text
+          style={[
+            styles.primaryButtonText,
+            !ready && styles.primaryButtonTextDisabled,
+          ]}
+        >
+          Show me three missions
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }

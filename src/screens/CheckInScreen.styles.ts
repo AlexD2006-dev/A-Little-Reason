@@ -86,4 +86,23 @@ export const styles = StyleSheet.create({
     color: 'rgba(38, 43, 34, 0.62)',
     fontSize: 11,
   },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#55705C',
+    borderRadius: 12,
+    marginTop: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: 'rgba(38, 43, 34, 0.28)',
+  },
+  primaryButtonText: {
+    color: '#F7F4EC',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  primaryButtonTextDisabled: {
+    color: 'rgba(38, 43, 34, 0.62)',
+  },
 });
