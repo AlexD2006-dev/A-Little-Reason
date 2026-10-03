@@ -1,12 +1,17 @@
-import { useState } from 'react';
-import { Alert } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import CheckInScreen from './src/screens/CheckInScreen';
 import RecommendationsScreen from './src/screens/RecommendationsScreen';
 import MissionScreen from './src/screens/MissionScreen';
 import CompletionScreen from './src/screens/CompletionScreen';
+import {
+  loadCompletionEntries,
+  saveCompletionEntries,
+} from './src/services/progressStorage';
 import { recommendMissions } from './src/services/recommendations';
 import type { Mission, MissionFilters } from './src/types/mission';
+import { appStyles } from './App.styles';
 
 type ScreenName = 'checkin' | 'recommendations' | 'mission' | 'completion';
 
@@ -25,6 +30,42 @@ export default function App() {
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [moodBefore, setMoodBefore] = useState(2);
   const [entries, setEntries] = useState<CompletionEntry[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
+  const isSaving = useRef(false);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function restoreEntries() {
+      try {
+        const savedEntries =
+          await loadCompletionEntries<CompletionEntry>();
+
+        if (isActive) {
+          setEntries(savedEntries);
+        }
+      } catch (error) {
+        console.warn('Could not load saved progress:', error);
+
+        if (isActive) {
+          Alert.alert(
+            'Could not load saved progress',
+            'The app can still be used, but the saved progress could not be read.',
+          );
+        }
+      } finally {
+        if (isActive) {
+          setStorageReady(true);
+        }
+      }
+    }
+
+    void restoreEntries();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   function handleCheckIn(mood: number, filters: MissionFilters) {
     setMoodBefore(mood);
@@ -32,8 +73,12 @@ export default function App() {
     setScreen('recommendations');
   }
 
-  function handleSave(moodAfter: number, reflection: string) {
-    if (selectedMission === null) return;
+  async function handleSave(moodAfter: number, reflection: string) {
+    if (selectedMission === null || isSaving.current) {
+      return;
+    }
+
+    isSaving.current = true;
 
     const entry: CompletionEntry = {
       missionId: selectedMission.id,
@@ -44,21 +89,50 @@ export default function App() {
       completedAt: new Date().toISOString(),
     };
 
-    const total = entries.length + 1;
-    setEntries((current) => [entry, ...current]);
+    const updatedEntries = [entry, ...entries];
 
-    Alert.alert(
-      'Logged for this session',
-      `${total} mission${total === 1 ? '' : 's'} recorded.`,
-      [
-        {
-          text: 'Done',
-          onPress: () => {
-            setSelectedMission(null);
-            setScreen('checkin');
+    try {
+      await saveCompletionEntries(updatedEntries);
+      setEntries(updatedEntries);
+
+      Alert.alert(
+        'Saved on this device',
+        `${updatedEntries.length} mission${
+          updatedEntries.length === 1 ? '' : 's'
+        } recorded.`,
+        [
+          {
+            text: 'Done',
+            onPress: () => {
+              setSelectedMission(null);
+              setScreen('checkin');
+            },
           },
-        },
-      ],
+        ],
+      );
+    } catch (error) {
+      console.warn('Could not save progress:', error);
+
+      Alert.alert(
+        'Could not save progress',
+        'Your mission could not be saved on this device. Please try again.',
+      );
+    } finally {
+      isSaving.current = false;
+    }
+  }
+
+  if (!storageReady) {
+    return (
+      <View style={appStyles.loadingScreen}>
+        <StatusBar style="dark" />
+        <ActivityIndicator
+          size="large"
+          color="#55705C"
+          accessibilityLabel="Loading saved progress"
+        />
+        <Text style={appStyles.loadingText}>Loading your progress...</Text>
+      </View>
     );
   }
 
