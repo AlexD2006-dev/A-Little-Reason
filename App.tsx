@@ -22,9 +22,19 @@ type ScreenName =
   | 'completion'
   | 'progress';
 
+function getMissionSetKey(missions: Mission[]) {
+  return missions
+    .map((mission) => mission.id)
+    .sort((a, b) => a - b)
+    .join(',');
+}
+
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('checkin');
   const [recommendations, setRecommendations] = useState<Mission[]>([]);
+  const [activeFilters, setActiveFilters] = useState<MissionFilters | null>(
+    null,
+  );
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [moodBefore, setMoodBefore] = useState(2);
   const [entries, setEntries] = useState<CompletionEntry[]>([]);
@@ -67,8 +77,33 @@ export default function App() {
 
   function handleCheckIn(mood: number, filters: MissionFilters) {
     setMoodBefore(mood);
+    setActiveFilters(filters);
     setRecommendations(recommendMissions(filters));
     setScreen('recommendations');
+  }
+
+  function handleRefreshRecommendations() {
+    if (activeFilters === null) {
+      return;
+    }
+
+    const nextRecommendations = recommendMissions(
+      activeFilters,
+      recommendations.map((mission) => mission.id),
+    );
+
+    if (
+      getMissionSetKey(nextRecommendations) ===
+      getMissionSetKey(recommendations)
+    ) {
+      Alert.alert(
+        'No more matches right now',
+        'These are the available ideas for your current check-in. Try changing one of your answers to see other options.',
+      );
+      return;
+    }
+
+    setRecommendations(nextRecommendations);
   }
 
   async function handleSave(moodAfter: number, reflection: string) {
@@ -148,6 +183,7 @@ export default function App() {
       {screen === 'recommendations' && (
         <RecommendationsScreen
           missions={recommendations}
+          onRefresh={handleRefreshRecommendations}
           onPick={(mission) => {
             setSelectedMission(mission);
             setScreen('mission');

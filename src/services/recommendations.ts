@@ -39,7 +39,10 @@ function scoreMission(mission: Mission, filters: MissionFilters): number {
   return score;
 }
 
-export function recommendMissions(filters: MissionFilters): Mission[] {
+export function recommendMissions(
+  filters: MissionFilters,
+  excludedMissionIds: number[] = [],
+): Mission[] {
   const ranked = MISSIONS
     .filter((mission) => {
       if (
@@ -83,11 +86,16 @@ export function recommendMissions(filters: MissionFilters): Mission[] {
     }))
     .sort((a, b) => b.score - a.score);
 
+  const excludedIds = new Set(excludedMissionIds);
+  const alternatives = ranked.filter(
+    (item) => !excludedIds.has(item.mission.id),
+  );
+
   const recommendations: Mission[] = [];
   const usedCategories = new Set<string>();
 
-  // Prefer variety across categories when there are enough matches.
-  for (const item of ranked) {
+  // Prefer unseen options and variety across categories.
+  for (const item of alternatives) {
     if (!usedCategories.has(item.mission.category)) {
       recommendations.push(item.mission);
       usedCategories.add(item.mission.category);
@@ -96,7 +104,16 @@ export function recommendMissions(filters: MissionFilters): Mission[] {
     if (recommendations.length === 3) break;
   }
 
-  // If fewer than three categories match, fill from the remaining ranked missions.
+  // Fill from other unseen matches if there weren't three categories.
+  for (const item of alternatives) {
+    if (recommendations.length === 3) break;
+
+    if (!recommendations.some((mission) => mission.id === item.mission.id)) {
+      recommendations.push(item.mission);
+    }
+  }
+
+  // If there aren't three unseen matches, fill with other eligible missions.
   for (const item of ranked) {
     if (recommendations.length === 3) break;
 

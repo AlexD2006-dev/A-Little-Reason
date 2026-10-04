@@ -1,9 +1,12 @@
+import { useEffect, useRef, useState } from 'react';
+import { Accelerometer } from 'expo-sensors';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { Mission, SocialLimit } from '../types/mission';
 import { styles } from './RecommendationsScreen.styles';
 
 type RecommendationsScreenProps = {
   missions: Mission[];
+  onRefresh: () => void;
   onPick: (mission: Mission) => void;
   onBack: () => void;
 };
@@ -17,9 +20,71 @@ const socialLabels: Record<SocialLimit, string> = {
 
 export default function RecommendationsScreen({
   missions,
+  onRefresh,
   onPick,
   onBack,
 }: RecommendationsScreenProps) {
+  const [sensorAvailable, setSensorAvailable] = useState<boolean | null>(null);
+  const onRefreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    if (missions.length === 0) {
+      setSensorAvailable(null);
+      return;
+    }
+
+    let isActive = true;
+    let lastShakeAt = 0;
+    let subscription: ReturnType<typeof Accelerometer.addListener> | undefined;
+
+    async function startShakeDetection() {
+      try {
+        const available = await Accelerometer.isAvailableAsync();
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!available) {
+          setSensorAvailable(false);
+          return;
+        }
+
+        Accelerometer.setUpdateInterval(150);
+
+        subscription = Accelerometer.addListener(({ x, y, z }) => {
+          const acceleration = Math.sqrt(x * x + y * y + z * z);
+          const now = Date.now();
+
+          // Ignore small movements and prevent one shake from refreshing repeatedly.
+          if (acceleration > 2 && now - lastShakeAt > 1800) {
+            lastShakeAt = now;
+            onRefreshRef.current();
+          }
+        });
+
+        setSensorAvailable(true);
+      } catch (error) {
+        console.warn('Could not start shake detection:', error);
+
+        if (isActive) {
+          setSensorAvailable(false);
+        }
+      }
+    }
+
+    void startShakeDetection();
+
+    return () => {
+      isActive = false;
+      subscription?.remove();
+    };
+  }, [missions.length]);
+
   return (
     <ScrollView
       style={styles.screen}
@@ -29,6 +94,26 @@ export default function RecommendationsScreen({
       <Text style={styles.sub}>
         No wrong pick. Choose whichever one you would actually do.
       </Text>
+
+      {missions.length > 0 && (
+        <View style={styles.refreshArea}>
+          <Text style={styles.refreshHint}>
+            {sensorAvailable === false
+              ? 'Shake refresh is unavailable, but you can tap below.'
+              : 'Gently shake your phone—or tap below—for another set.'}
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Show a different set of mission recommendations"
+            accessibilityHint="Refreshes the recommendations using the same check-in."
+            onPress={onRefresh}
+            style={styles.refreshButton}
+          >
+            <Text style={styles.refreshButtonText}>Try another set</Text>
+          </Pressable>
+        </View>
+      )}
 
       {missions.length === 0 ? (
         <View style={styles.empty}>

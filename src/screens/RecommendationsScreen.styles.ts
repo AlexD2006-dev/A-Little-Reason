@@ -21,7 +21,30 @@ export const styles = StyleSheet.create({
     color: 'rgba(38, 43, 34, 0.62)',
     fontSize: 15,
     lineHeight: 23,
-    marginBottom: 22,
+    marginBottom: 18,
+  },
+  refreshArea: {
+    alignItems: 'flex-start',
+    marginBottom: 18,
+  },
+  refreshHint: {
+    color: 'rgba(38, 43, 34, 0.62)',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  refreshButton: {
+    backgroundColor: '#E4E9DE',
+    borderColor: 'rgba(38, 43, 34, 0.14)',
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+  },
+  refreshButtonText: {
+    color: '#3C4F40',
+    fontSize: 13,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: '#F7F4EC',
