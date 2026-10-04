@@ -39,6 +39,7 @@ export default function RecommendationsScreen({
 
     let isActive = true;
     let lastShakeAt = 0;
+    let previousReading: { x: number; y: number; z: number } | null = null;
     let subscription: ReturnType<typeof Accelerometer.addListener> | undefined;
 
     async function startShakeDetection() {
@@ -54,17 +55,27 @@ export default function RecommendationsScreen({
           return;
         }
 
-        Accelerometer.setUpdateInterval(150);
+        Accelerometer.setUpdateInterval(80);
 
         subscription = Accelerometer.addListener(({ x, y, z }) => {
-          const acceleration = Math.sqrt(x * x + y * y + z * z);
-          const now = Date.now();
+          const currentReading = { x, y, z };
 
-          // Ignore small movements and prevent one shake from refreshing repeatedly.
-          if (acceleration > 2 && now - lastShakeAt > 1800) {
-            lastShakeAt = now;
-            onRefreshRef.current();
+          if (previousReading !== null) {
+            const movementChange = Math.sqrt(
+              (x - previousReading.x) ** 2 +
+                (y - previousReading.y) ** 2 +
+                (z - previousReading.z) ** 2,
+            );
+            const now = Date.now();
+
+            // Detect a deliberate movement, with a short pause between refreshes.
+            if (movementChange >= 0.85 && now - lastShakeAt > 1300) {
+              lastShakeAt = now;
+              onRefreshRef.current();
+            }
           }
+
+          previousReading = currentReading;
         });
 
         setSensorAvailable(true);
@@ -100,7 +111,7 @@ export default function RecommendationsScreen({
           <Text style={styles.refreshHint}>
             {sensorAvailable === false
               ? 'Shake refresh is unavailable, but you can tap below.'
-              : 'Gently shake your phone—or tap below—for another set.'}
+              : 'Give your phone one deliberate shake—or tap below—for another set.'}
           </Text>
 
           <Pressable
