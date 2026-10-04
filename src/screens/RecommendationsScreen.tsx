@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Accelerometer } from 'expo-sensors';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import type { Mission, SocialLimit } from '../types/mission';
 import { styles } from './RecommendationsScreen.styles';
 
@@ -38,11 +38,59 @@ export default function RecommendationsScreen({
     }
 
     let isActive = true;
+    let sensorCanRun = false;
+    let hasCheckedAvailability = false;
+    let isCheckingAvailability = false;
     let lastShakeAt = 0;
     let previousReading: { x: number; y: number; z: number } | null = null;
     let subscription: ReturnType<typeof Accelerometer.addListener> | undefined;
 
-    async function startShakeDetection() {
+    function stopListening() {
+      subscription?.remove();
+      subscription = undefined;
+      previousReading = null;
+    }
+
+    function startListening() {
+      if (!isActive || !sensorCanRun || subscription) {
+        return;
+      }
+
+      Accelerometer.setUpdateInterval(80);
+
+      subscription = Accelerometer.addListener(({ x, y, z }) => {
+        const currentReading = { x, y, z };
+
+        if (previousReading !== null) {
+          const movementChange = Math.sqrt(
+            (x - previousReading.x) ** 2 +
+              (y - previousReading.y) ** 2 +
+              (z - previousReading.z) ** 2,
+          );
+          const now = Date.now();
+
+          // Detect a deliberate movement, with a short pause between refreshes.
+          if (movementChange >= 0.85 && now - lastShakeAt > 1300) {
+            lastShakeAt = now;
+            onRefreshRef.current();
+          }
+        }
+
+        previousReading = currentReading;
+      });
+    }
+
+    async function checkAvailabilityAndStart() {
+      if (
+        !isActive ||
+        hasCheckedAvailability ||
+        isCheckingAvailability
+      ) {
+        return;
+      }
+
+      isCheckingAvailability = true;
+
       try {
         const available = await Accelerometer.isAvailableAsync();
 
@@ -50,49 +98,66 @@ export default function RecommendationsScreen({
           return;
         }
 
-        if (!available) {
-          setSensorAvailable(false);
-          return;
+        hasCheckedAvailability = true;
+        sensorCanRun = available;
+        setSensorAvailable(available);
+
+        if (available && AppState.currentState === 'active') {
+          startListening();
         }
-
-        Accelerometer.setUpdateInterval(80);
-
-        subscription = Accelerometer.addListener(({ x, y, z }) => {
-          const currentReading = { x, y, z };
-
-          if (previousReading !== null) {
-            const movementChange = Math.sqrt(
-              (x - previousReading.x) ** 2 +
-                (y - previousReading.y) ** 2 +
-                (z - previousReading.z) ** 2,
-            );
-            const now = Date.now();
-
-            // Detect a deliberate movement, with a short pause between refreshes.
-            if (movementChange >= 0.85 && now - lastShakeAt > 1300) {
-              lastShakeAt = now;
-              onRefreshRef.current();
-            }
-          }
-
-          previousReading = currentReading;
-        });
-
-        setSensorAvailable(true);
       } catch (error) {
         console.warn('Could not start shake detection:', error);
 
         if (isActive) {
+          hasCheckedAvailability = true;
+          sensorCanRun = false;
           setSensorAvailable(false);
         }
+      } finally {
+        isCheckingAvailability = false;
       }
     }
 
-    void startShakeDetection();
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (nextState) => {
+        if (nextState === 'active') {
+          if (hasCheckedAvailability) {
+            startListening();
+          } else {
+            void checkAvailabilityAndStart();
+          }
+        } else {
+          stopListening();
+        }
+      },
+    );
+
+    // Android can report loss of focus (for example, when opening the
+    // notification shade) without changing the app's active state.
+    const blurSubscription = AppState.addEventListener(
+      'blur',
+      stopListening,
+    );
+
+    const focusSubscription = AppState.addEventListener('focus', () => {
+      if (AppState.currentState === 'active') {
+        if (hasCheckedAvailability) {
+          startListening();
+        } else {
+          void checkAvailabilityAndStart();
+        }
+      }
+    });
+
+    void checkAvailabilityAndStart();
 
     return () => {
       isActive = false;
-      subscription?.remove();
+      stopListening();
+      appStateSubscription.remove();
+      blurSubscription.remove();
+      focusSubscription.remove();
     };
   }, [missions.length]);
 

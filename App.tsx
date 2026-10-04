@@ -6,8 +6,12 @@ import RecommendationsScreen from './src/screens/RecommendationsScreen';
 import MissionScreen from './src/screens/MissionScreen';
 import CompletionScreen from './src/screens/CompletionScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
+import { MISSIONS } from './src/data/missions';
 import {
+  clearActiveMissionSession,
+  loadActiveMissionSession,
   loadCompletionEntries,
+  saveActiveMissionSession,
   saveCompletionEntries,
 } from './src/services/progressStorage';
 import { recommendMissions } from './src/services/recommendations';
@@ -21,13 +25,6 @@ type ScreenName =
   | 'mission'
   | 'completion'
   | 'progress';
-
-function getMissionSetKey(missions: Mission[]) {
-  return missions
-    .map((mission) => mission.id)
-    .sort((a, b) => a - b)
-    .join(',');
-}
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('checkin');
@@ -44,7 +41,7 @@ export default function App() {
   useEffect(() => {
     let isActive = true;
 
-    async function restoreEntries() {
+    async function restoreAppState() {
       try {
         const savedEntries =
           await loadCompletionEntries<CompletionEntry>();
@@ -61,6 +58,33 @@ export default function App() {
             'The app can still be used, but the saved progress could not be read.',
           );
         }
+      }
+
+      try {
+        const savedSession = await loadActiveMissionSession();
+
+        if (isActive && savedSession !== null) {
+          const mission = MISSIONS.find(
+            (item) => item.id === savedSession.missionId,
+          );
+
+          if (mission !== undefined) {
+            setSelectedMission(mission);
+            setMoodBefore(savedSession.moodBefore);
+            setScreen('mission');
+          } else {
+            await clearActiveMissionSession();
+          }
+        }
+      } catch (error) {
+        console.warn('Could not restore the unfinished mission:', error);
+
+        if (isActive) {
+          Alert.alert(
+            'Could not restore your mission',
+            'Your saved progress is still available. Start a new check-in to continue.',
+          );
+        }
       } finally {
         if (isActive) {
           setStorageReady(true);
@@ -68,7 +92,7 @@ export default function App() {
       }
     }
 
-    void restoreEntries();
+    void restoreAppState();
 
     return () => {
       isActive = false;
@@ -92,10 +116,17 @@ export default function App() {
       recommendations.map((mission) => mission.id),
     );
 
-    if (
-      getMissionSetKey(nextRecommendations) ===
-      getMissionSetKey(recommendations)
-    ) {
+    const currentSetKey = recommendations
+      .map((mission) => mission.id)
+      .sort((a, b) => a - b)
+      .join(',');
+
+    const nextSetKey = nextRecommendations
+      .map((mission) => mission.id)
+      .sort((a, b) => a - b)
+      .join(',');
+
+    if (nextSetKey === currentSetKey) {
       Alert.alert(
         'No more matches right now',
         'These are the available ideas for your current check-in. Try changing one of your answers to see other options.',
@@ -104,6 +135,41 @@ export default function App() {
     }
 
     setRecommendations(nextRecommendations);
+  }
+
+  async function handlePickMission(mission: Mission) {
+    let sessionSaved = true;
+
+    try {
+      await saveActiveMissionSession({
+        missionId: mission.id,
+        moodBefore,
+      });
+    } catch (error) {
+      sessionSaved = false;
+      console.warn('Could not save the active mission:', error);
+    }
+
+    setSelectedMission(mission);
+    setScreen('mission');
+
+    if (!sessionSaved) {
+      Alert.alert(
+        'Mission selected',
+        'You can continue now, but this mission may not be restored if the app closes.',
+      );
+    }
+  }
+
+  async function handleBackFromMission() {
+    try {
+      await clearActiveMissionSession();
+    } catch (error) {
+      console.warn('Could not clear the active mission:', error);
+    }
+
+    setSelectedMission(null);
+    setScreen(activeFilters === null ? 'checkin' : 'recommendations');
   }
 
   async function handleSave(moodAfter: number, reflection: string) {
@@ -127,6 +193,12 @@ export default function App() {
     try {
       await saveCompletionEntries(updatedEntries);
       setEntries(updatedEntries);
+
+      try {
+        await clearActiveMissionSession();
+      } catch (error) {
+        console.warn('Could not clear the active mission:', error);
+      }
 
       Alert.alert(
         'Saved on this device',
@@ -184,10 +256,7 @@ export default function App() {
         <RecommendationsScreen
           missions={recommendations}
           onRefresh={handleRefreshRecommendations}
-          onPick={(mission) => {
-            setSelectedMission(mission);
-            setScreen('mission');
-          }}
+          onPick={handlePickMission}
           onBack={() => setScreen('checkin')}
         />
       )}
@@ -196,7 +265,7 @@ export default function App() {
         <MissionScreen
           mission={selectedMission}
           onComplete={() => setScreen('completion')}
-          onBack={() => setScreen('recommendations')}
+          onBack={handleBackFromMission}
         />
       )}
 
