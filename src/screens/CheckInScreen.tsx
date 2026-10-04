@@ -14,9 +14,13 @@ import { styles } from './CheckInScreen.styles';
 
 type CheckInScreenProps = {
   onContinue: (moodBefore: number, filters: MissionFilters) => void;
+  onOpenProgress: () => void;
 };
 
-export default function CheckInScreen({ onContinue }: CheckInScreenProps) {
+export default function CheckInScreen({
+  onContinue,
+  onOpenProgress,
+}: CheckInScreenProps) {
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [filters, setFilters] = useState<MissionFilters>({
     energy: null,
@@ -51,7 +55,8 @@ export default function CheckInScreen({ onContinue }: CheckInScreenProps) {
 
       <Text style={styles.headline}>How are you, right now?</Text>
       <Text style={styles.sub}>
-        Answer honestly. This is about what feels realistic today, not what feels ambitious.
+        Answer honestly. This is about what feels realistic today, not what
+        feels ambitious.
       </Text>
 
       <View style={styles.field}>
@@ -138,6 +143,14 @@ export default function CheckInScreen({ onContinue }: CheckInScreenProps) {
         >
           Show me three missions
         </Text>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={onOpenProgress}
+        style={styles.progressButton}
+      >
+        <Text style={styles.progressButtonText}>See my progress</Text>
       </Pressable>
     </ScrollView>
   );

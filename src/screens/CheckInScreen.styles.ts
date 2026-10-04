@@ -105,4 +105,14 @@ export const styles = StyleSheet.create({
   primaryButtonTextDisabled: {
     color: 'rgba(38, 43, 34, 0.62)',
   },
+  progressButton: {
+  alignSelf: 'center',
+  marginTop: 8,
+  paddingVertical: 8,
+},
+progressButtonText: {
+  color: '#3C4F40',
+  fontSize: 14,
+  fontWeight: '700',
+},
 });

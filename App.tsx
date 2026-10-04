@@ -5,24 +5,22 @@ import CheckInScreen from './src/screens/CheckInScreen';
 import RecommendationsScreen from './src/screens/RecommendationsScreen';
 import MissionScreen from './src/screens/MissionScreen';
 import CompletionScreen from './src/screens/CompletionScreen';
+import ProgressScreen from './src/screens/ProgressScreen';
 import {
   loadCompletionEntries,
   saveCompletionEntries,
 } from './src/services/progressStorage';
 import { recommendMissions } from './src/services/recommendations';
+import type { CompletionEntry } from './src/types/completion';
 import type { Mission, MissionFilters } from './src/types/mission';
 import { appStyles } from './App.styles';
 
-type ScreenName = 'checkin' | 'recommendations' | 'mission' | 'completion';
-
-type CompletionEntry = {
-  missionId: number;
-  title: string;
-  moodBefore: number;
-  moodAfter: number;
-  reflection: string;
-  completedAt: string;
-};
+type ScreenName =
+  | 'checkin'
+  | 'recommendations'
+  | 'mission'
+  | 'completion'
+  | 'progress';
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('checkin');
@@ -141,7 +139,10 @@ export default function App() {
       <StatusBar style="dark" />
 
       {screen === 'checkin' && (
-        <CheckInScreen onContinue={handleCheckIn} />
+        <CheckInScreen
+          onContinue={handleCheckIn}
+          onOpenProgress={() => setScreen('progress')}
+        />
       )}
 
       {screen === 'recommendations' && (
@@ -168,6 +169,13 @@ export default function App() {
           mission={selectedMission}
           moodBefore={moodBefore}
           onSave={handleSave}
+        />
+      )}
+
+      {screen === 'progress' && (
+        <ProgressScreen
+          entries={entries}
+          onBack={() => setScreen('checkin')}
         />
       )}
     </>
