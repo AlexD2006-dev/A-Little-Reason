@@ -15,7 +15,7 @@ A Little Reason is a small, low-pressure activity app built with React Native, T
 
 - React Native
 - TypeScript and TSX
-- Expo SDK 57
+- Expo SDK 58
 - `expo-sensors` for accelerometer input
 - `@react-native-async-storage/async-storage` for on-device persistence
 
